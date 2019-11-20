@@ -1,0 +1,5 @@
+#!/bin/bash
+sed -i 's/session.save_handler "files"/session.save_handler "memcache"/g' /etc/httpd/conf.d/php.conf
+sed -i 's%session.save_path    "/var/lib/php/session"%session.save_path "demo-memcached.dpvfyv.0001.use1.cache.amazonaws.com:11211"%g' /etc/httpd/conf.d/php.conf
+service httpd start
+chkconfig httpd on
