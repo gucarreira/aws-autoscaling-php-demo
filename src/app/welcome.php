@@ -70,7 +70,7 @@ $start = $time;
                         echo '</p>';
                         ?>
                     </div>
-                    <img src="image/unicorn.png" width="250" height="250" />
+                    <img src="image/unicorn.png" width="250" height="250" class="img-unicorn"/>
                 </div>
             </div>
         </div>
