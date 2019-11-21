@@ -124,14 +124,133 @@ Resources:
       RouteTableId: !Ref PrivateRouteTable
   
 
-  ## App layer (EC2 instance, Elastic IP) ##
+  ## App layer (EC2 instance, ALB, Security groups, EC2 SSM Role) ##
+  SecurityGroupHTTPALB:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: HTTPSgALB
+      GroupDescription: HTTP(S)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref PubPrivateVPC
+      Tags:
+        - Key: Name
+          Value: HTTPSgALB
+  WebSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: WebSg
+      GroupDescription: HTTP(S)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !Ref SecurityGroupHTTPALB
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          SourceSecurityGroupId: !Ref SecurityGroupHTTPALB
+      VpcId: !Ref PubPrivateVPC
+      Tags:
+        - Key: Name
+          Value: WebSg
+  EC2Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+      RoleName: EC2-SSM-SSH
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2Role
+  EC2App:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: EC2InstanceProfile
+    Properties:
+      ImageId: ami-00dc79254d0461090
+      InstanceType: t2.micro
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      UserData: !Base64 >
+        #!/bin/bash
+        sudo yum update -y
+        sudo yum install httpd -y
+        # Start apache
+        sudo service httpd start
+        chkconfig httpd on
+      Tags:
+        - Key: Name
+          Value: AppInstance
+  TALB:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    DependsOn:
+      - EC2App
+    Properties:
+      Name: tg-app
+      VpcId: !Ref PubPrivateVPC
+      TargetType: instance
+      Port: 80
+      Protocol: HTTP
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 2
+      HealthCheckIntervalSeconds: 5
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 10
+      Targets:
+        - Id: !Ref EC2App
+  ALB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    DependsOn:
+      - TALB
+    Properties:
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Name: alb-app
+      SecurityGroups:
+        - !Ref SecurityGroupHTTPALB
+  ALBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TALB
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
 
+  ## Data layer (Elasticache memcached node, RDS MySQL) ##
+  
 
-  ## Data layer (EC2 instance, Elastic IP) ##
-
-
-  ## CDN layer (S3 bucket, CloudFront distribution) ##
-
+  ## CDN layer (S3 bucket) ##
+  S3Static:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join [_, [!Ref 'AWS::StackName'], [!Ref 'AWS::AccountId']]
 
   ## Outputs ##
   Outputs:
@@ -160,3 +279,8 @@ Resources:
     Value: !Ref "PublicSubnet2"
     Export:
       Name: AppPublicSubnet2ID
+  StaticBucket:
+    Description: Static assets
+    Value: !Ref S3Static
+    Export:
+      Name: S3StaticBucket

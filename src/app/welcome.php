@@ -17,7 +17,7 @@ $start = $time;
         AWS Demo HUB
     </title>
     <!--STYLE-->
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="stylesheet" type="text/css" href="css/style.css">
     <link rel="stylesheet" type="text/css" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css">
     <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
     <!--SCRIPT-->
@@ -70,7 +70,7 @@ $start = $time;
                         echo '</p>';
                         ?>
                     </div>
-                    <img src="unicorn.png" width="250" height="250" />
+                    <img src="image/unicorn.png" width="250" height="250" />
                 </div>
             </div>
         </div>
