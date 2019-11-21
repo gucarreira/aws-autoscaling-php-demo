@@ -187,7 +187,7 @@ Resources:
     Type: 'AWS::EC2::Instance'
     DependsOn:
       - EC2InstanceProfile
-      - Memcached
+      - MemCluster
     Properties:
       ImageId: ami-00dc79254d0461090
       InstanceType: t2.micro
@@ -208,6 +208,8 @@ Resources:
             sudo mv aws-autoscaling-php-demo/src/image/ /var/www/html/
             sudo mv aws-autoscaling-php-demo/src/css/ /var/www/html/
             # Update config files
+            sed -i 's/session.save_handler "files"/session.save_handler "memcache"/g' /etc/httpd/conf.d/php.conf
+            sed -i 's%session.save_path    "/var/lib/php/session"%session.save_path "${MemCluster.Address}:11211"%g' /etc/httpd/conf.d/php.conf
             # Start apache
             sudo service httpd start
             chkconfig httpd on
