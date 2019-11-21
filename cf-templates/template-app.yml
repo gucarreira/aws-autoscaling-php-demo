@@ -185,7 +185,9 @@ Resources:
         - !Ref EC2Role
   EC2App:
     Type: 'AWS::EC2::Instance'
-    DependsOn: EC2InstanceProfile
+    DependsOn:
+      - EC2InstanceProfile
+      - Memcached
     Properties:
       ImageId: ami-00dc79254d0461090
       InstanceType: t2.micro
@@ -193,13 +195,22 @@ Resources:
       SubnetId: !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref WebSecurityGroup
-      UserData: !Base64 >
-        #!/bin/bash
-        sudo yum update -y
-        sudo yum install httpd -y
-        # Start apache
-        sudo service httpd start
-        chkconfig httpd on
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            # Install dependecies
+            sudo yum update -y
+            sudo yum install php php-memcache git -y
+            # Clone repository
+            git clone https://github.com/gabrielmartinigit/aws-autoscaling-php-demo.git
+            sudo mv aws-autoscaling-php-demo/src/app/* /var/www/html/
+            sudo mv aws-autoscaling-php-demo/src/image/ /var/www/html/
+            sudo mv aws-autoscaling-php-demo/src/css/ /var/www/html/
+            # Update config files
+            # Start apache
+            sudo service httpd start
+            chkconfig httpd on
       Tags:
         - Key: Name
           Value: AppInstance
@@ -244,7 +255,35 @@ Resources:
       Protocol: HTTP
 
   ## Data layer (Elasticache memcached node, RDS MySQL) ##
-  
+  MemSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security Group for Memcached
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '11211'
+          ToPort: '11211'
+          SourceSecurityGroupId: !Ref WebSecurityGroup
+      VpcId: !Ref PubPrivateVPC
+  MemSubnetGroup:
+    Type: 'AWS::ElastiCache::SubnetGroup'
+    Properties:
+      Description: Subnet Group for Memcached
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+  MemCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      AZMode: cross-az
+      CacheNodeType: cache.t2.micro
+      VpcSecurityGroupIds:
+        - !Ref MemSecurityGroup
+      CacheSubnetGroupName: !Ref MemSubnetGroup
+      ClusterName: web-memcached
+      Engine: memcached
+      NumCacheNodes: 1
+      Port: 11211
 
   ## CDN layer (S3 bucket) ##
   S3Static:
@@ -259,26 +298,11 @@ Resources:
     Value: !Ref "PubPrivateVPC"
     Export:
       Name: AppVPCID
-  PrivateSubnet1ID:
-    Description: Private Subnet A ID
-    Value: !Ref "PrivateSubnet1"
+  ALBDNS:
+    Description: URL to access the application
+    Value: !GetAtt ALB.DNSName
     Export:
-      Name: AppPrivateSubnet1ID
-  PrivateSubnet2ID:
-    Description: Private Subnet B ID
-    Value: !Ref "PrivateSubnet2"
-    Export:
-      Name: AppPrivateSubnet2ID
-  PublicSubnet1ID:
-    Description: Public Subnet A ID
-    Value: !Ref "PublicSubnet1"
-    Export:
-      Name: AppPublicSubnet1ID
-  PublicSubnet2ID:
-    Description: Public Subnet B ID
-    Value: !Ref "PublicSubnet2"
-    Export:
-      Name: AppPublicSubnet2ID
+      Name: ALBAppURL
   StaticBucket:
     Description: Static assets
     Value: !Ref S3Static
