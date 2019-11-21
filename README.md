@@ -23,7 +23,10 @@ To get started you will need an IAM user with the following access:
 * Route53
 * IAM
 
-__Note: Tested in the N. Virginia region (us-east-1).__
+__Notes:__ 
+* __Tested in the N. Virginia region (us-east-1);__
+* __CF is just creating two subnets (public, private-app), different from the architecture;__
+* __RDS is not implemented yet to test Read Replicas.__
 
 ## App CloudFormation
 
